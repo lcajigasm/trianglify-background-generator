@@ -17,17 +17,25 @@ var triOptions = {
   cellSize: function(){
     return $('#cell-slider').slider("value");
   },
-  cellpadding: function(){
+  cellPadding: function(){
     return $('#cellpadding-slider').slider("value");
   },
   bleed: function(){
     return $('#bleed-slider').slider("value");
   },
-  xColors: function(){
-    return currentXPalette.colors;
-  },
-  yColors: function(){
-    return currentYPalette.colors;
+  colors: function(){
+    // Trianglify v4+ uses a single color array for gradient
+    // We'll use the selected palette for both axes
+    switch($("[type='radio']:checked").val()) {
+      case "x":
+        return currentXPalette.colors;
+      case "y":
+        return currentYPalette.colors;
+      case "z":
+        return currentXPalette.colors.concat(currentYPalette.colors);
+      default:
+        return currentXPalette.colors;
+    }
   }
 };
 
@@ -39,13 +47,21 @@ function initialiseApp() {
 }
 
 function setNewTrianglifier() {
-  currentTrianglifier = new Trianglify({"bleed": triOptions.bleed(),
-                          "cellsize": triOptions.cellSize(),
-                          "x_gradient": triOptions.xColors(),
-                          "y_gradient": triOptions.yColors(),
-                          "cellpadding": triOptions.cellpadding(),
-                          "noiseIntensity": 0
-                        });
+  currentTrianglifier = Trianglify({
+    width: triOptions.width(),
+    height: triOptions.height(),
+    cell_size: triOptions.cellSize(),
+    variance: 0.75,
+    seed: null,
+    x_colors: triOptions.colors(),
+    y_colors: triOptions.colors(),
+    color_space: 'lab',
+    color_function: null,
+    stroke_width: 1.51,
+    points: null,
+    cell_padding: triOptions.cellPadding(),
+    bleed: triOptions.bleed()
+  });
 }
 
 function updateScreen() {
@@ -54,26 +70,29 @@ function updateScreen() {
 }
 
 function generateBackground() {
-  currentPattern = currentTrianglifier.generate(triOptions.width(), triOptions.height());
-  $("#backgrounds").css({"background-image": currentPattern.dataUrl});
-  convertSVGtoPNG();
+  // Trianglify v4+ returns an object with .toSVG() and .toDataURL() methods
+  currentPattern = currentTrianglifier;
+  var svgString = currentPattern.toSVG();
+  var dataUrl = currentPattern.toDataURL();
+  $("#backgrounds").css({"background-image": "url('" + dataUrl + "')"});
+  convertSVGtoPNG(dataUrl);
 }
 
 // Creates an image from an SVG, then sets up the 'Download' link so the user
 // can open the image in a new tab
-function convertSVGtoPNG() {
+function convertSVGtoPNG(dataUrl) {
   var canvas = document.getElementById('the-canvas');
   var context = canvas.getContext('2d');
   canvas.width = triOptions.width();
   canvas.height = triOptions.height();
 
   var image = new Image();
-
+  image.crossOrigin = "Anonymous";
   $(image).on("load", function() {
     context.drawImage(image, 0, 0);
     $("#download-btn").attr("href", canvas.toDataURL("image/png"));
   });
-  image.src = currentPattern.dataUri;
+  image.src = dataUrl;
 }
 
 // Class representing a single colour palette made up of multiple colours
